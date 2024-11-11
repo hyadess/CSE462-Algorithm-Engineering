@@ -1,199 +1,200 @@
-#include <iostream>
-#include <vector>
-#include <unordered_map>
-#include <unordered_set>
-#include <cmath>
-#include <limits>
-#include <algorithm>
+#define GKLR
+#ifdef GKLR
+#include <bits/stdc++.h>
+using namespace std;
+#include "gain_table.hpp"
 
+vector<Node *> nodes;
+int partition_count;
+// the gain table
+GainTable *gainTable;
 
-struct Vertex {
-    int id;
-    std::unordered_set<int> neighbors;  // List of neighboring vertex IDs
-};
+void initialize()
+{
+    // open a file and read the nodes and vertices
+    // file is in the format
+    // vertex_count edge_count
+    // edges with pairs of vertices per line
+    // nodes are initialized with gain 0
 
+    ifstream file("input.txt");
 
-struct Partition {
-    std::unordered_set<int> vertices;
-    int getSize() const { return vertices.size(); }
-};
+    int vertex_count, edge_count;
+    file >> partition_count;
+    file >> vertex_count >> edge_count;
 
+    for (int i = 0; i < vertex_count; i++)
+    {
+        Node *node = new Node(i + 1, 0);
+        nodes.push_back(node);
+    }
+    for (int i = 0; i < edge_count; i++)
+    {
+        int u, v;
+        file >> u >> v;
+        nodes[u - 1]->neighbors.push_back(nodes[v - 1]);
+        nodes[v - 1]->neighbors.push_back(nodes[u - 1]);
+    }
+    file.close();
 
-class Graph {
-public:
-    Graph(int numVertices, int numPartitions, int maxBalance)
-        : numPartitions(numPartitions), maxBalance(maxBalance) {
-        vertices.resize(numVertices);
-        partitions.resize(numPartitions);
+    // print the nodes with their neighbors
+
+    cout << "========================================Nodes and Neighbors==========================================" << endl;
+
+    for (int i = 0; i < vertex_count; i++)
+    {
+        cout << "Node " << nodes[i]->vertex << " neighbors: ";
+        for (int j = 0; j < nodes[i]->neighbors.size(); j++)
+        {
+            cout << nodes[i]->neighbors[j]->vertex << " ";
+        }
+        cout << endl;
     }
 
-    void addEdge(int u, int v) {
-        vertices[u].neighbors.insert(v);
-        vertices[v].neighbors.insert(u);
-    }
+    // initialize the gain table with -vertex_count to vertex_count
+    gainTable = new GainTable(vertex_count, -vertex_count);
+}
 
-    void assignToPartition(int vertexId, int partitionId) {
-        partitions[partitionId].vertices.insert(vertexId);
-        vertexToPartition[vertexId] = partitionId;
-    }
 
-    void runKLRefinement() {
-        bool improvement = true;
-        int numIterations = 0;
-        while (improvement) {
-            numIterations++;
-            improvement = false;
-            for (int i = 0; i < numPartitions; ++i) {
-                for (int j = i + 1; j < numPartitions; ++j) {
-                    improvement |= refineBetweenPartitions(i, j);
-                }
+void print_partitions()
+{
+    // print the nodes with their partitions
+    cout << "========================================current Partitions==========================================" << endl;
+
+    for (int i = 0; i < nodes.size(); i++)
+    {
+        cout << "Node " << nodes[i]->vertex << " partition: " << nodes[i]->partition << endl;
+    }
+}
+
+void random_partition()
+{
+    // randomly assign the nodes to partitions
+    for (int i = 0; i < nodes.size(); i++)
+    {
+        nodes[i]->partition = rand() % partition_count;
+    }
+    print_partitions();
+
+    
+}
+
+void calculate_gains()
+{
+    // calculate the gain of each node
+    for (int i = 0; i < nodes.size(); i++)
+    {
+        int external = 0;
+        int internal = 0;
+        for (int j = 0; j < nodes[i]->neighbors.size(); j++)
+        {
+            if (nodes[i]->neighbors[j]->partition != nodes[i]->partition)
+            {
+                external++;
             }
-            if (numIterations > 100) {
-                break;
+            else
+            {
+                internal++;
             }
+        }
+        nodes[i]->gain = external - internal;
+    }
+
+    // assign the nodes to the gain table
+
+    
+
+    for (int i = 0; i < nodes.size(); i++)
+    {
+        gainTable->insert(nodes[i]);
+    }
+    gainTable->print();
+}
+
+void swap_and_lock()
+{
+    cout << "========================================Swapping and Locking==========================================" << endl;
+    
+    // the node with the highest gain value=========================================
+    Node *node = gainTable->getFirst();
+    if (node == nullptr)
+    {
+        return;
+    }
+    node->is_locked = true;
+    gainTable->remove(node);
+    cout << "Swapping node " << node->vertex << " with gain " << node->gain << endl;
+
+
+
+    // choose the partition with the highest number of neighbors============================================
+
+    int partitions[partition_count] = {0};
+    for (int i = 0; i < node->neighbors.size(); i++)
+    {
+        partitions[node->neighbors[i]->partition]++;
+    }
+    int partition = 0; // the new partition for node
+    int max = partitions[0];
+    for (int i = 1; i < partition_count; i++)
+    {
+        if (partitions[i] > max)
+        {
+            max = partitions[i];
+            partition = i;
+        }
+    }
+    int old_partition = node->partition;
+    
+    // update the gain of the neighbors=========================================
+    for (int i = 0; i < node->neighbors.size(); i++)
+    {
+        //neighbour with old partition will have gain +2
+        if (node->neighbors[i]->partition == old_partition)
+        {
+            gainTable->shiftUp(node->neighbors[i]);
+        }
+        else if (node->neighbors[i]->partition == partition)
+        {
+            gainTable->shiftDown(node->neighbors[i]);
         }
     }
 
-    void printPartitions() const {
-        for (int i = 0; i < numPartitions; ++i) {
-            std::cout << "Partition " << i << ": ";
-            for (int vertex : partitions[i].vertices) {
-                std::cout << vertex << " ";
-            }
-            std::cout << "\n";
+
+    // update the partition and recalculate gain of the node=========================================
+    node->partition = partition;
+
+    int external = 0;
+    int internal = 0;
+    for (int j = 0; j < node->neighbors.size(); j++)
+    {
+        if (node->neighbors[j]->partition != node->partition)
+        {
+            external++;
+        }
+        else
+        {
+            internal++;
         }
     }
+    node->gain = external - internal;
 
-private:
-    int numPartitions;
-    int maxBalance;
-    std::vector<Vertex> vertices;
-    std::vector<Partition> partitions;
-    std::unordered_map<int, int> vertexToPartition;
+    // insert the node back to the gain table=========================================
+    gainTable->insert(node);
+    gainTable->print();
+    print_partitions();
+    
+}
 
-    bool refineBetweenPartitions(int p, int q) {
-        std::vector<int> gains;
-        std::unordered_set<int> locked;
-
-        // Calculate initial gains and select vertices to swap
-        calculateGains(p, q, gains, locked);
-
-        int maxGain = 0;
-        int cumulativeGain = 0;
-        bool improvement = false;
-
-        for (int i = 0; i < gains.size(); ++i) {
-            cumulativeGain += gains[i];
-            
-            // Check balance constraint before applying the swap
-            if (isBalancedAfterSwap(p, q) && cumulativeGain > maxGain) {
-                maxGain = cumulativeGain;
-                improvement = true;
-            }
-        }
-
-        if (improvement) {
-            applySwaps(p, q, maxGain);
-        }
-
-        return improvement;
-    }
-
-    void calculateGains(int p, int q, std::vector<int>& gains, std::unordered_set<int>& locked) {
-        for (int v : partitions[p].vertices) {
-            if (locked.find(v) == locked.end()) {
-                int gain = calculateGain(v, q);
-                gains.push_back(gain);
-            }
-        }
-        for (int v : partitions[q].vertices) {
-            if (locked.find(v) == locked.end()) {
-                int gain = calculateGain(v, p);
-                gains.push_back(gain);
-            }
-        }
-        std::sort(gains.begin(), gains.end(), std::greater<int>());
-    }
-
-    int calculateGain(int vertex, int targetPartition) {
-        int currentPartition = vertexToPartition[vertex];
-        int gain = 0;
-        
-        for (int neighbor : vertices[vertex].neighbors) {
-            if (vertexToPartition[neighbor] == currentPartition) {
-                gain -= 1;  
-            } else if (vertexToPartition[neighbor] == targetPartition) {
-                gain += 1;  
-            }
-        }
-        
-        return gain;
-    }
-
-    void applySwaps(int p, int q, int maxGain) {
-        int swapsApplied = 0;
-        
-        for (int vertex : partitions[p].vertices) {
-            if (calculateGain(vertex, q) >= maxGain) {
-                partitions[p].vertices.erase(vertex);
-                partitions[q].vertices.insert(vertex);
-                vertexToPartition[vertex] = q;
-                swapsApplied++;
-            }
-        }
-
-        for (int vertex : partitions[q].vertices) {
-            if (calculateGain(vertex, p) >= maxGain) {
-                partitions[q].vertices.erase(vertex);
-                partitions[p].vertices.insert(vertex);
-                vertexToPartition[vertex] = p;
-                swapsApplied++;
-            }
-        }
-    }
-
-    bool isBalancedAfterSwap(int p, int q) {
-        int sizeP = partitions[p].getSize();
-        int sizeQ = partitions[q].getSize();
-        return std::abs(sizeP - sizeQ) <= maxBalance;
-    }
-};
-
-int main() {
-    int numVertices = 10;
-    int numPartitions = 3;
-    int maxBalance = 2;
-
-    Graph graph(numVertices, numPartitions, maxBalance);
-
-
-    graph.addEdge(0, 1);
-    graph.addEdge(0, 2);
-    graph.addEdge(1, 3);
-    graph.addEdge(1, 4);
-    graph.addEdge(2, 5);
-    graph.addEdge(2, 6);
-    graph.addEdge(3, 7);
-    graph.addEdge(4, 8);
-    graph.addEdge(5, 9);
-
-
-    graph.assignToPartition(0, 0);
-    graph.assignToPartition(1, 0);
-    graph.assignToPartition(2, 1);
-    graph.assignToPartition(3, 1);
-    graph.assignToPartition(4, 2);
-    graph.assignToPartition(5, 2);
-    graph.assignToPartition(6, 0);
-    graph.assignToPartition(7, 1);
-    graph.assignToPartition(8, 2);
-    graph.assignToPartition(9, 0);
-
-
-    graph.runKLRefinement();
-
-
-    graph.printPartitions();
+int main()
+{
+    initialize();
+    random_partition();
+    calculate_gains();
+    swap_and_lock();
+    swap_and_lock();
 
     return 0;
 }
+
+#endif
