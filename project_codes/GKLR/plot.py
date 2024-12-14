@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Load the CSV file
-data = pd.read_csv('results/small_dense/data_2.csv')  # Replace with your actual file path
+data = pd.read_csv('results/dense/data_2.csv')  # Replace with your actual file path
 
 # Ensure numeric data types
 data['partition_count'] = pd.to_numeric(data['partition_count'], errors='coerce')
