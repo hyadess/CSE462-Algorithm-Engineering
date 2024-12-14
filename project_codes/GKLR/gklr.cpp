@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
     // cout << "========================================Initialization==========================================" << endl;
     init_partition();
 
-    int iteration = 1000;
+    int iteration = 10000;
     calculate_gains();
     while (iteration--)
     {
@@ -279,7 +279,7 @@ int main(int argc, char *argv[])
                 break;
             }
             cont++;
-            if (cont > 1000)
+            if (cont > 100000)
             {
                 break;
             }
@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
     // if the csv file size is 0, add the column names
     if (isCSVEmpty("results/small_dense/" + input_file.substr(0, input_file.size() - 4) + ".csv"))
     {
-        csv_file << "Partition Count, Balance Difference, Cut Size" << endl;
+        csv_file << "partition_count, balance_difference, cut_size" << endl;
     }
 
 

@@ -17,15 +17,17 @@ if not exist %PROGRAM% (
 @REM )
 
 REM Partition counts (10 to 60 in steps of 20)
-for /L %%p in (10,10,60) do (
+for /L %%p in (10,10,150) do (
     REM Balance ranges (3 to 5)
-    for /L %%b in (3,1,5) do (
+    for /L %%b in (3,2,60) do (
 
         REM Input files in "input" directory (input/input_1.txt, input/input_2.txt, etc.)
-        for %%f in (small_dense/data_*.txt) do (
-            echo Running with Partition Count %%p, Balance %%b, and File %%f...
-            %PROGRAM% %%p %%b %%f
+        REM for only first 5 files data_1 to data_5
+        for /L %%i in (1,1,5) do (
+            echo Running %PROGRAM% with partition count %%p, balance range %%b, and input file %%i...
+            %PROGRAM% %%p %%b data_%%i.txt
         )
+        
     )
 )
 
