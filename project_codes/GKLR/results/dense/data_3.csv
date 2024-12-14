@@ -1,4 +1,4 @@
-partition_count, balance_difference, cut_size
+partition_count,balance_difference,cut_size
 10,3,18190
 10,5,18163
 10,7,18154
