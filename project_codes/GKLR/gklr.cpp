@@ -3,11 +3,46 @@
 #include <bits/stdc++.h>
 using namespace std;
 #include "gain_table.hpp"
+#define maxn 100005
 
 vector<Node *> nodes;
+
+// given inputs
 int partition_count;
+int balance_dif;
+string input_file;
+
+// variables to keep track of the partitions
+
+int partition_size[maxn];
 // the gain table
 GainTable *gainTable;
+
+int calculate_cut_size()
+{
+    int cut_size = 0;
+    for (int i = 0; i < nodes.size(); i++)
+    {
+        for (int j = 0; j < nodes[i]->neighbors.size(); j++)
+        {
+            if (nodes[i]->partition != nodes[i]->neighbors[j]->partition)
+            {
+                cut_size++;
+            }
+        }
+    }
+    return cut_size / 2;
+}
+
+
+void unlock_nodes()
+{
+    for (int i = 0; i < nodes.size(); i++)
+    {
+        nodes[i]->is_locked = false;
+    }
+}
+
 
 void initialize()
 {
@@ -17,44 +52,42 @@ void initialize()
     // edges with pairs of vertices per line
     // nodes are initialized with gain 0
 
-    ifstream file("input.txt");
+    ifstream file("small_dense/"+input_file);
 
     int vertex_count, edge_count;
-    file >> partition_count;
     file >> vertex_count >> edge_count;
 
     for (int i = 0; i < vertex_count; i++)
     {
-        Node *node = new Node(i + 1, 0);
+        Node *node = new Node(i, 0);
         nodes.push_back(node);
     }
     for (int i = 0; i < edge_count; i++)
     {
         int u, v;
         file >> u >> v;
-        nodes[u - 1]->neighbors.push_back(nodes[v - 1]);
-        nodes[v - 1]->neighbors.push_back(nodes[u - 1]);
+        nodes[u]->neighbors.push_back(nodes[v]);
+        nodes[v]->neighbors.push_back(nodes[u]);
     }
     file.close();
 
     // print the nodes with their neighbors
 
-    cout << "========================================Nodes and Neighbors==========================================" << endl;
+    // cout << "========================================Nodes and Neighbors==========================================" << endl;
 
-    for (int i = 0; i < vertex_count; i++)
-    {
-        cout << "Node " << nodes[i]->vertex << " neighbors: ";
-        for (int j = 0; j < nodes[i]->neighbors.size(); j++)
-        {
-            cout << nodes[i]->neighbors[j]->vertex << " ";
-        }
-        cout << endl;
-    }
+    // for (int i = 0; i < vertex_count; i++)
+    // {
+    //     cout << "Node " << nodes[i]->vertex << " neighbors: ";
+    //     for (int j = 0; j < nodes[i]->neighbors.size(); j++)
+    //     {
+    //         cout << nodes[i]->neighbors[j]->vertex << " ";
+    //     }
+    //     cout << endl;
+    // }
 
     // initialize the gain table with -vertex_count to vertex_count
     gainTable = new GainTable(vertex_count, -vertex_count);
 }
-
 
 void print_partitions()
 {
@@ -67,16 +100,20 @@ void print_partitions()
     }
 }
 
-void random_partition()
+void init_partition()
 {
-    // randomly assign the nodes to partitions
+    //  assign the nodes to partitions
+    int cur = 0;
     for (int i = 0; i < nodes.size(); i++)
     {
-        nodes[i]->partition = rand() % partition_count;
+        nodes[i]->partition = cur;
+        partition_size[cur]++;
+        cur = (cur + 1) % partition_count;
     }
-    print_partitions();
 
-    
+    // find out cur max and min size of the partitions
+
+    // print_partitions();
 }
 
 void calculate_gains()
@@ -102,54 +139,64 @@ void calculate_gains()
 
     // assign the nodes to the gain table
 
-    
-
     for (int i = 0; i < nodes.size(); i++)
     {
         gainTable->insert(nodes[i]);
     }
-    gainTable->print();
+    // gainTable->print();
 }
 
-void swap_and_lock()
+int shift_and_lock()
 {
-    cout << "========================================Swapping and Locking==========================================" << endl;
-    
+    // cout << "========================================Swapping and Locking==========================================" << endl;
+
     // the node with the highest gain value=========================================
     Node *node = gainTable->getFirst();
     if (node == nullptr)
     {
-        return;
+        return -1;
     }
     node->is_locked = true;
     gainTable->remove(node);
-    cout << "Swapping node " << node->vertex << " with gain " << node->gain << endl;
-
-
+    // cout << "Swapping node " << node->vertex << " with gain " << node->gain << endl;
 
     // choose the partition with the highest number of neighbors============================================
 
     int partitions[partition_count] = {0};
+    int partition = 0; // the new partition for node
+    int old_partition = node->partition;
+    int max = -1;
+
     for (int i = 0; i < node->neighbors.size(); i++)
     {
         partitions[node->neighbors[i]->partition]++;
     }
-    int partition = 0; // the new partition for node
-    int max = partitions[0];
-    for (int i = 1; i < partition_count; i++)
+
+    for (int i = 0; i < node->neighbors.size(); i++)
     {
-        if (partitions[i] > max)
+        if (partitions[node->neighbors[i]->partition] > max &&
+            node->neighbors[i]->partition != old_partition &&
+            abs((partition_size[node->neighbors[i]->partition] + 1) - (partition_size[old_partition] - 1)) <= balance_dif)
         {
-            max = partitions[i];
-            partition = i;
+            max = partitions[node->neighbors[i]->partition];
+            partition = node->neighbors[i]->partition;
         }
     }
-    int old_partition = node->partition;
-    
+    if (max == -1)
+    {
+        gainTable->insert(node);
+        return -1;
+    }
+
+
+    // update the partition size=========================================
+    partition_size[old_partition]--;
+    partition_size[partition]++;
+
     // update the gain of the neighbors=========================================
     for (int i = 0; i < node->neighbors.size(); i++)
     {
-        //neighbour with old partition will have gain +2
+        // neighbour with old partition will have gain +2
         if (node->neighbors[i]->partition == old_partition)
         {
             gainTable->shiftUp(node->neighbors[i]);
@@ -159,7 +206,6 @@ void swap_and_lock()
             gainTable->shiftDown(node->neighbors[i]);
         }
     }
-
 
     // update the partition and recalculate gain of the node=========================================
     node->partition = partition;
@@ -181,18 +227,96 @@ void swap_and_lock()
 
     // insert the node back to the gain table=========================================
     gainTable->insert(node);
-    gainTable->print();
-    print_partitions();
-    
+    // gainTable->print();
+    // print_partitions();
+
+    return 1; // success
 }
 
-int main()
+bool isCSVEmpty(const std::string& filePath) {
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open file " << filePath << std::endl;
+        return false; // or handle the error as needed
+    }
+
+    // Check if the file is empty
+    if (file.peek() == std::ifstream::traits_type::eof()) {
+        return true; // File is empty
+    }
+
+    return false; // File is not empty
+}
+
+
+int main(int argc, char *argv[])
 {
+    partition_count = 2;
+    balance_dif = 3;
+    if (argc > 1)
+    {
+        partition_count = atoi(argv[1]);
+        balance_dif = atoi(argv[2]);
+        input_file = argv[3];
+    }
+
     initialize();
-    random_partition();
+    // cout << "========================================Initialization==========================================" << endl;
+    init_partition();
+
+    int iteration = 1000;
     calculate_gains();
-    swap_and_lock();
-    swap_and_lock();
+    while (iteration--)
+    {
+        //cout<<"Iteration "<<100-iteration<<endl;
+        // clear the gain table
+        int cont = 0;
+        while (1)
+        {
+
+            if (shift_and_lock() == -1)
+            {
+                break;
+            }
+            cont++;
+            if (cont > 1000)
+            {
+                break;
+            }
+        }
+        unlock_nodes();
+    }
+
+    // store the result in a file, make sure to append the result
+
+    // write in results/input_file.txt file
+
+    // ofstream file("results/small_dense" + input_file, ios::app);
+    // // the cut size
+    // file << "For partition count " << partition_count << " ,input file " << input_file << " and balance difference " << balance_dif << " the cut size is " << calculate_cut_size() << endl;
+
+    // file.close();
+
+    //also, write in a csv file
+    // if input file is input.txt change it to input.csv
+
+
+    ofstream csv_file("results/small_dense/" + input_file.substr(0, input_file.size() - 4) + ".csv", ios::app);
+
+    // if the csv file size is 0, add the column names
+    if (isCSVEmpty("results/small_dense/" + input_file.substr(0, input_file.size() - 4) + ".csv"))
+    {
+        csv_file << "Partition Count, Balance Difference, Cut Size" << endl;
+    }
+
+
+
+    // add columns partition count, balance difference, cut size
+    csv_file << partition_count << "," << balance_dif << "," << calculate_cut_size() << endl;
+
+
+
+
 
     return 0;
 }

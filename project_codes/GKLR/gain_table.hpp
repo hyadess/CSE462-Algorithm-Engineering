@@ -54,6 +54,7 @@ public:
         return maxGain - gain;
     }
     void insert(Node* node) {
+        // O(1) operation
         int index = searchIndex(node->gain);
         Node* dummy = gainTable[index];
         // assume node is the new node to be inserted
@@ -78,16 +79,19 @@ public:
             Node* dummy = gainTable[i];
             Node* current = dummy->next;
             while (current != nullptr) {
-                if (!current->is_locked) {
+                //make sure the gain value is positive
+                if (!current->is_locked ) {
                     return current;
                 }
                 current = current->next;
             }
         }
+        return nullptr;
     }
 
     // shift a node to 2 gain value lower
     void shiftDown(Node* node) {
+        // O(1) operation
         remove(node);
         node->gain -= 2;
         insert(node);
@@ -95,6 +99,7 @@ public:
 
     // shift a node to 2 gain value higher
     void shiftUp(Node* node) {
+        // O(1) operation
         remove(node);
         node->gain += 2;
         insert(node);
@@ -114,6 +119,13 @@ public:
         }
     }
 
+    void clear() {
+        for (int i = 0; i < gainTable.size(); i++) {
+            Node* dummy = gainTable[i];
+           //unlink don't delete
+            dummy->next = nullptr;
+        }
+    }
 
 };
 
