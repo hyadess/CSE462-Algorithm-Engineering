@@ -1,6 +1,7 @@
 #define GKLR
 #ifdef GKLR
 #include <bits/stdc++.h>
+#include <chrono>
 using namespace std;
 #include "gain_table.hpp"
 #define maxn 100005
@@ -10,6 +11,9 @@ vector<Node *> nodes;
 // given inputs
 int partition_count;
 int balance_dif;
+int init_size_diff;
+int max_allowed_partition_size;
+int min_allowed_partition_size;
 string input_file;
 
 // variables to keep track of the partitions
@@ -34,6 +38,17 @@ int calculate_cut_size()
     return cut_size / 2;
 }
 
+int partition_size_diff()
+{
+    int max_size = -1;
+    int min_size = 1000000;
+    for (int i = 0; i < partition_count; i++)
+    {
+        max_size = max(max_size, partition_size[i]);
+        min_size = min(min_size, partition_size[i]);
+    }
+    return max_size - min_size;
+}
 
 void unlock_nodes()
 {
@@ -42,7 +57,6 @@ void unlock_nodes()
         nodes[i]->is_locked = false;
     }
 }
-
 
 void initialize()
 {
@@ -56,6 +70,15 @@ void initialize()
 
     int vertex_count, edge_count;
     file >> vertex_count >> edge_count;
+
+    int partition_size = vertex_count / partition_count;
+    if(vertex_count%partition_count!=0){
+        partition_size++;
+    }
+    max_allowed_partition_size = partition_size+partition_size*balance_dif/100+1;
+    min_allowed_partition_size = partition_size-partition_size*balance_dif/100-1;
+    //cout<<max_allowed_partition_size<<endl;
+
 
     for (int i = 0; i < vertex_count; i++)
     {
@@ -111,6 +134,22 @@ void init_partition()
         cur = (cur + 1) % partition_count;
     }
 
+    //swap nodes between partitions randomly
+
+    for (int i = 0; i < 10000; i++)
+    {
+        int u = rand() % nodes.size();
+        int v = rand() % nodes.size();
+        if (nodes[u]->partition != nodes[v]->partition)
+        {
+            swap(nodes[u]->partition, nodes[v]->partition);
+        }
+    }
+
+    //init_size_diff = partition_size_diff();
+
+
+    
     // find out cur max and min size of the partitions
 
     // print_partitions();
@@ -167,6 +206,11 @@ int shift_and_lock()
     int old_partition = node->partition;
     int max = -1;
 
+    if(partition_size[node->partition]<=min_allowed_partition_size){
+        gainTable->insert(node);
+        return -1;
+    }
+
     for (int i = 0; i < node->neighbors.size(); i++)
     {
         partitions[node->neighbors[i]->partition]++;
@@ -176,7 +220,7 @@ int shift_and_lock()
     {
         if (partitions[node->neighbors[i]->partition] > max &&
             node->neighbors[i]->partition != old_partition &&
-            abs((partition_size[node->neighbors[i]->partition] + 1) - (partition_size[old_partition] - 1)) <= balance_dif)
+            partition_size[node->neighbors[i]->partition] < max_allowed_partition_size)
         {
             max = partitions[node->neighbors[i]->partition];
             partition = node->neighbors[i]->partition;
@@ -266,11 +310,13 @@ int main(int argc, char *argv[])
 
     int iteration = 10000;
     calculate_gains();
-    while (iteration--)
+
+    double iteration_times[10000];
+    
+    for (int iteration = 0; iteration < 10000; iteration++)
     {
-        //cout<<"Iteration "<<100-iteration<<endl;
-        // clear the gain table
         int cont = 0;
+        auto start = std::chrono::high_resolution_clock::now();
         while (1)
         {
 
@@ -284,6 +330,11 @@ int main(int argc, char *argv[])
                 break;
             }
         }
+        auto end = std::chrono::high_resolution_clock::now();
+
+        //store times in double milliseconds
+        iteration_times[iteration] = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
         unlock_nodes();
     }
 
@@ -301,19 +352,33 @@ int main(int argc, char *argv[])
     // if input file is input.txt change it to input.csv
 
 
-    ofstream csv_file("results/small_dense/" + input_file.substr(0, input_file.size() - 4) + ".csv", ios::app);
+    ofstream csv_file("results/dense/" + input_file.substr(0, input_file.size() - 4) + ".csv", ios::app);
 
     // if the csv file size is 0, add the column names
-    if (isCSVEmpty("results/small_dense/" + input_file.substr(0, input_file.size() - 4) + ".csv"))
+    if (isCSVEmpty("results/dense/" + input_file.substr(0, input_file.size() - 4) + ".csv"))
     {
-        csv_file << "partition_count,balance_difference,cut_size" << endl;
+        csv_file << "partition_count,balance_difference,cut_size,size_difference" << endl;
     }
 
 
 
     // add columns partition count, balance difference, cut size
-    csv_file << partition_count << "," << balance_dif << "," << calculate_cut_size() << endl;
+    csv_file << partition_count << "," << balance_dif << "," << calculate_cut_size() << "," << partition_size_diff()<< endl;
 
+
+    // //write the iteration times in a separate csv file
+    // ofstream iteration_file("results/dense/" + input_file.substr(0, input_file.size() - 4) + "_iteration_times.csv", ios::app);
+
+    // // if the csv file size is 0, add the column names
+    // if (isCSVEmpty("results/dense/" + input_file.substr(0, input_file.size() - 4) + "_iteration_times.csv"))
+    // {
+    //     iteration_file << "iteration,time" << endl;
+    // }
+
+    // for (int i = 0; i < 10000; i++)
+    // {
+    //     iteration_file << i << "," << iteration_times[i] << endl;
+    // }
 
 
 
