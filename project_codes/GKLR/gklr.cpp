@@ -237,6 +237,8 @@ int shift_and_lock()
     partition_size[old_partition]--;
     partition_size[partition]++;
 
+    int gain_update = 0;
+
     // update the gain of the neighbors=========================================
     for (int i = 0; i < node->neighbors.size(); i++)
     {
@@ -244,10 +246,12 @@ int shift_and_lock()
         if (node->neighbors[i]->partition == old_partition)
         {
             gainTable->shiftUp(node->neighbors[i]);
+            gain_update+=2;
         }
         else if (node->neighbors[i]->partition == partition)
         {
             gainTable->shiftDown(node->neighbors[i]);
+            gain_update-=2;
         }
     }
 
@@ -267,12 +271,19 @@ int shift_and_lock()
             internal++;
         }
     }
+    
+    gain_update += (external - internal) - node->gain;
+    
     node->gain = external - internal;
 
     // insert the node back to the gain table=========================================
     gainTable->insert(node);
     // gainTable->print();
     // print_partitions();
+
+    if(gain_update>=0){
+        return -1;
+    }
 
     return 1; // success
 }
@@ -316,7 +327,8 @@ int main(int argc, char *argv[])
     for (int iteration = 0; iteration < 10000; iteration++)
     {
         int cont = 0;
-        auto start = std::chrono::high_resolution_clock::now();
+        bool flag=false;
+        // auto start = std::chrono::high_resolution_clock::now();
         while (1)
         {
 
@@ -324,16 +336,20 @@ int main(int argc, char *argv[])
             {
                 break;
             }
+            else
+            {
+                flag=true;
+            }
             cont++;
             if (cont > 100000)
             {
                 break;
             }
         }
-        auto end = std::chrono::high_resolution_clock::now();
+        // auto end = std::chrono::high_resolution_clock::now();
 
         //store times in double milliseconds
-        iteration_times[iteration] = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        // iteration_times[iteration] = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
         unlock_nodes();
     }
@@ -364,6 +380,8 @@ int main(int argc, char *argv[])
 
     // add columns partition count, balance difference, cut size
     csv_file << partition_count << "," << balance_dif << "," << calculate_cut_size() << "," << partition_size_diff()<< endl;
+
+    
 
 
     // //write the iteration times in a separate csv file

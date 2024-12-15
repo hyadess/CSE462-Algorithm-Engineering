@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 # Load the CSV file
 type_ = 'dense'
-file= 'data_4'
+file= 'data_5'
 csv_file = type_+'/'+file+'.csv'
 data = pd.read_csv('results/'+csv_file)  # Replace with your actual file path
 
